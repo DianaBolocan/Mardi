@@ -10,7 +10,7 @@ import math
 class MyAgent:
     def __init__(self):
         self.model = Sequential()
-        self.model.add(Dense(9, input_dim=4, activation="relu"))
+        self.model.add(Dense(9, input_dim=3, activation="relu"))
         self.model.add(Dense(15, activation="relu"))
         self.model.add(Dense(3))
         sgd = keras.optimizers.SGD(lr=0.01, decay=1e-6, momentum=0.9, nesterov=True)
@@ -20,7 +20,7 @@ class MyAgent:
         self.model.fit(x=train_set, y=target_set, epochs=1, verbose=0)
 
     def getAction(self, state):
-        return self.model.predict(state.reshape(1, 4))
+        return self.model.predict(state.reshape(1, 3))
 
     def train_batch(self, train_set):
         y = 0.95
@@ -66,11 +66,13 @@ def getInput(current_state,screen_size):
     # positionare relativa la snake
     relative_x = np.sign(current_state["food_x"] - current_state["snake_head_x"])
     relative_y = np.sign(current_state["food_y"] - current_state["snake_head_y"])
-    food_distance = abs(current_state["food_x"] - current_state["snake_head_x"]) +\
-                    abs(current_state["food_y"] - current_state["snake_head_y"])
+    # food_distance = abs(current_state["food_x"] - current_state["snake_head_x"]) +\
+    #                 abs(current_state["food_y"] - current_state["snake_head_y"])
     inputData.append(relative_x)
     inputData.append(relative_y)
-    inputData.append(food_distance)
+    # inputData.append(food_distance)
+    # inputData.append(current_state["snake_head_x"])
+    # inputData.append(current_state["snake_head_y"])
     # cea mai apropiata coliziune
     if len(current_state["snake_body_pos"]) >= 7:
         if closestSegmentDistance(current_state) < closestWallDistance(current_state,screen_size):
@@ -93,7 +95,7 @@ game.clock = pygame.time.Clock()
 
 # initialisation part:
 epsilon = 0.9
-batch_size = 50
+batch_size = 500
 actions = sorted(list(game.getActions()))  # left, right, down, up
 all_possible_actions = [[2,0,3], [3,1,2], [1,2,0], [0,3,1]]  # for left, right, down, up
 currently_available_actions = all_possible_actions[1]
@@ -101,6 +103,7 @@ current_state = getInput(game.getGameState(),screen_size)
 training_set = []
 iterations = 0
 reset_flag = False
+maxscore = 0
 
 while True:
     if game.game_over() or reset_flag:
@@ -108,35 +111,38 @@ while True:
         available_actions = all_possible_actions[1]
         current_state = getInput(game.getGameState(),screen_size)
         reset_flag = False
-		iterations = 0
+        iterations = 0
 
-    dt = game.clock.tick_busy_loop(30)
+    # dt = game.clock.tick_busy_loop(30)
     # get the action and its reward, compute the new currently_available_actions:
     action, index = nextAction(agent,epsilon,current_state,currently_available_actions)
     reward = p.act(actions[action])
     currently_available_actions = all_possible_actions[action]
 
     # Next step
-    game.step(dt)
+    # game.step(dt)
     new_state = getInput(game.getGameState(),screen_size)
 
     if iterations > 300:
         iterations = 0
         reset_flag = True
         reward = game.rewards["loss"]
-        
+
     if reward > 0:
         iterations = 0
+
+    if game.getScore() > maxscore:
+        maxscore = game.getScore()
+        print(maxscore)
 
     experience = [current_state, index, reward, new_state]
     training_set.append(experience)
 
     # send training data:
     if len(training_set) == batch_size:
-        print("Train")
         agent.train_batch(training_set)
         training_set.clear()
 
     current_state = new_state
     iterations += 1
-    pygame.display.update()
+    epsilon *= 0.999
